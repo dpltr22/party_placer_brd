@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Politischer Kompass – Deutsche Parteien</title>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --surface: #ffffff;
+    --surface-2: #efede6;
+    --text: #1a1a1a;
+    --text-secondary: #5f5e5a;
+    --border: rgba(0,0,0,0.15);
+    --border-strong: rgba(0,0,0,0.3);
+    --info: #185FA5;
+    --info-bg: #E6F1FB;
+    --success: #1d9e75;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a1a;
+      --surface: #262626;
+      --surface-2: #2f2f2f;
+      --text: #f0f0f0;
+      --text-secondary: #a8a8a8;
+      --border: rgba(255,255,255,0.15);
+      --border-strong: rgba(255,255,255,0.3);
+      --info: #85B7EB;
+      --info-bg: #0C447C;
+      --success: #5dcaa5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 1.5rem 1rem;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 15px; line-height: 1.5;
+  }
+  h1 { font-size: 22px; font-weight: 500; margin: 0 0 4px; }
+  .subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.2rem; }
+  .compass-wrap { max-width: 680px; margin: 0 auto; }
+  .intro { font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; }
+  .compass-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; }
+  .party-btn {
+    padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface);
+    font-size: 13px; cursor: pointer; color: var(--text);
+    font-family: inherit;
+  }
+  .party-btn.placed { border-color: var(--success); }
+  .party-btn.active { border: 2px solid var(--info); padding: 5px 11px; }
+  .party-btn .dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    margin-right: 6px; vertical-align: middle;
+    border: 1px solid var(--border);
+  }
+  .party-btn .check {
+    display: inline-block; margin-left: 5px;
+    color: var(--success); font-weight: 600;
+  }
+  .compass-stage {
+    position: relative; width: 100%; aspect-ratio: 1;
+    background: var(--surface-2); border-radius: 12px;
+    border: 1px solid var(--border);
+    cursor: crosshair; overflow: hidden;
+    touch-action: none;
+  }
+  .axis-label {
+    position: absolute; font-size: 12px;
+    color: var(--text-secondary); font-weight: 500;
+    pointer-events: none;
+  }
+  /* horizontal labels UNDER the horizontal line */
+  .axis-label.h-left { left: 14px; top: calc(50% + 8px); }
+  .axis-label.h-right { right: 14px; top: calc(50% + 8px); }
+  .axis-label.v-top { top: 8px; left: 50%; transform: translateX(-50%); }
+  .axis-label.v-bottom { bottom: 8px; left: 50%; transform: translateX(-50%); }
+  .axis-line { position: absolute; background: var(--border-strong); }
+  .axis-line.h { left: 0; right: 0; top: 50%; height: 1px; }
+  .axis-line.v { top: 0; bottom: 0; left: 50%; width: 1px; }
+  .marker { position: absolute; transform: translate(-50%, -50%); }
+  .marker.own { cursor: grab; z-index: 5; }
+  .marker.own:active { cursor: grabbing; }
+  .marker.mean { pointer-events: none; z-index: 3; }
+  .marker .core {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--surface); box-sizing: border-box;
+  }
+  .marker.mean .core {
+    width: 18px; height: 18px; border: 2px solid var(--text);
+  }
+  .marker.locked .core { border-color: var(--success); }
+  .marker .label {
+    position: absolute; left: 14px; top: -2px;
+    font-size: 11px; font-weight: 500; white-space: nowrap;
+    background: var(--surface); padding: 1px 5px; border-radius: 4px;
+    border: 1px solid var(--border); color: var(--text);
+    pointer-events: none;
+  }
+  .legend-row {
+    display: flex; gap: 14px; font-size: 12px;
+    color: var(--text-secondary); margin-top: 10px; flex-wrap: wrap;
+  }
+  .legend-row .item { display: flex; align-items: center; gap: 6px; }
+  .save-row {
+    display: flex; gap: 12px; margin-top: 1rem; align-items: center;
+    flex-wrap: wrap;
+  }
+  .save-btn {
+    padding: 9px 20px;
+    border-radius: 8px;
+    border: 1px solid var(--info);
+    background: var(--info-bg);
+    color: var(--info);
+    font-family: inherit;
+    font-size: 14px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .save-btn:hover:not(:disabled) {
+    background: var(--info);
+    color: var(--surface);
+  }
+  .save-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .save-btn.saved {
+    border-color: var(--success);
+    background: transparent;
+    color: var(--success);
+    opacity: 1;
+  }
+  .save-hint {
+    font-size: 12px; color: var(--text-secondary);
+    font-style: italic;
+  }
+  .stat-row { display: flex; gap: 12px; margin-top: 1rem; flex-wrap: wrap; }
+  .stat-card {
+    flex: 1; min-width: 140px; background: var(--surface-2);
+    border-radius: 8px; padding: 10px 14px;
+  }
+  .stat-card .k { font-size: 12px; color: var(--text-secondary); }
+  .stat-card .v { font-size: 18px; font-weight: 500; margin-top: 2px; }
+  .toggle-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .action-btn {
+    padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: transparent;
+    font-size: 13px; cursor: pointer; color: var(--text);
+    font-family: inherit;
+  }
+  .action-btn:hover { background: var(--surface-2); }
+  .status {
+    font-size: 12px; color: var(--text-secondary);
+    margin-top: 8px; min-height: 16px;
+  }
+  .admin-badge {
+    display: none; font-size: 11px; color: var(--info);
+    margin-top: 8px; font-weight: 500;
+  }
+  .footer {
+    max-width: 680px; margin: 2rem auto 0;
+    font-size: 11px; color: var(--text-secondary); text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div class="compass-wrap">
+    <h1>Politischer Kompass — Deutsche Parteien</h1>
+    <div class="subtitle">Zweidimensionale Verortung im Seminar</div>
+    <div class="intro">
+      Wähle eine Partei und klicke (oder tippe) in den Kompass, um sie zu verorten.
+      Du kannst die Punkte beliebig verschieben, bis du zufrieden bist. Wenn alle neun
+      Parteien platziert sind, klicke auf <strong>Speichern</strong>, um deine Einordnungen
+      endgültig an das Seminar zu übermitteln.
+    </div>
+
+    <div class="compass-controls" id="party-buttons"></div>
+
+    <div class="compass-stage" id="stage">
+      <div class="axis-line h"></div>
+      <div class="axis-line v"></div>
+      <div class="axis-label v-top">sozio-kulturell autoritär</div>
+      <div class="axis-label v-bottom">sozio-kulturell libertär</div>
+      <div class="axis-label h-left">sozio-ökonomisch links</div>
+      <div class="axis-label h-right">sozio-ökonomisch rechts</div>
+    </div>
+
+    <div class="legend-row">
+      <div class="item">
+        <span style="width:12px;height:12px;border-radius:50%;background:var(--text-secondary);display:inline-block;border:2px solid var(--surface);box-sizing:border-box;"></span>
+        eigene Einordnung
+      </div>
+      <div class="item">
+        <span style="width:14px;height:14px;border-radius:50%;background:var(--text-secondary);display:inline-block;border:2px solid var(--text);box-sizing:border-box;"></span>
+        Mittelwert aller Seminarstimmen
+      </div>
+    </div>
+
+    <div class="save-row">
+      <button class="save-btn" id="save-btn" disabled>Speichern</button>
+      <span class="save-hint" id="save-hint">Platziere zuerst alle 9 Parteien</span>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card"><div class="k">Aktive Partei</div><div class="v" id="stat-party">–</div></div>
+      <div class="stat-card"><div class="k">Platziert</div><div class="v" id="stat-placed">0 / 9</div></div>
+      <div class="stat-card"><div class="k">Stimmen Seminar</div><div class="v" id="stat-total">0</div></div>
+    </div>
+
+    <div class="toggle-row">
+      <button class="action-btn" id="toggle-own">Eigene ausblenden</button>
+      <button class="action-btn" id="refresh-btn">Seminardaten aktualisieren</button>
+      <button class="action-btn" id="reset-own-btn">Zurücksetzen</button>
+    </div>
+    <div class="toggle-row" id="admin-toolbar" style="display:none; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--border);">
+      <span style="font-size:11px; color:var(--text-secondary); align-self:center; margin-right:4px; font-weight:500;">ADMIN:</span>
+      <button class="action-btn" id="toggle-class-btn">Seminardaten ausblenden</button>
+      <button class="action-btn" id="export-btn">Daten als CSV exportieren</button>
+      <button class="action-btn" id="reset-all-btn">Alle Seminardaten löschen</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="admin-badge" id="admin-badge">✓ Admin-Modus aktiv</div>
+  </div>
+
+  <div class="footer">
+    Daten werden auf einem gemeinsamen Server gespeichert, sodass alle Teilnehmenden
+    denselben Mittelwert sehen.
+  </div>
+
+<script>
+(function() {
+  // =====================================================================
+  // KONFIGURATION
+  // =====================================================================
+  const API_URL = "https://api.jsonbin.io/v3/b/69d7862faaba882197dd469e";
+  const API_KEY = "party_placer_0956";
+  const ADMIN_KEY = "dozent2026";
+  // =====================================================================
+
+  const parties = [
+    { id: 'cdu',    name: 'CDU/CSU',      color: '#000000' },
+    { id: 'spd',    name: 'SPD',          color: '#E3000F' },
+    { id: 'gruene', name: 'Grüne',        color: '#1AA037' },
+    { id: 'fdp',    name: 'FDP',          color: '#D4B800' },
+    { id: 'linke',  name: 'Die Linke',    color: '#BE3075' },
+    { id: 'afd',    name: 'AfD',          color: '#009EE0' },
+    { id: 'bsw',    name: 'BSW',          color: '#7A2A8D' },
+    { id: 'freie',  name: 'Freie Wähler', color: '#F39200' },
+    { id: 'volt',   name: 'Volt',         color: '#502379' },
+  ];
+
+  let activeParty = parties[0].id;
+  let showOwn = true;
+  let showClass = true;
+  let ownPlacements = {};
+  let classData = {};
+  let hasSubmitted = false;
+  let dragState = null;
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const isAdmin = urlParams.get('admin') === ADMIN_KEY;
+
+  const stage = document.getElementById('stage');
+  const partyButtonsEl = document.getElementById('party-buttons');
+  const statusEl = document.getElementById('status');
+  const saveBtn = document.getElementById('save-btn');
+  const saveHint = document.getElementById('save-hint');
+
+  function setStatus(msg) { statusEl.textContent = msg || ''; }
+  function getParty(id) { return parties.find(p => p.id === id); }
+
+  async function loadRemote() {
+    if (!API_URL) {
+      const raw = localStorage.getItem('compass-class-data');
+      return raw ? JSON.parse(raw) : {};
+    }
+    try {
+      const headers = {};
+      if (API_KEY) headers['X-Master-Key'] = API_KEY;
+      const res = await fetch(API_URL + '/latest', { headers });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      return (data.record && data.record.placements) || data.placements || {};
+    } catch (err) {
+      console.warn('Remote load failed, using local:', err);
+      const raw = localStorage.getItem('compass-class-data');
+      return raw ? JSON.parse(raw) : {};
+    }
+  }
+
+  async function saveRemote(data) {
+    localStorage.setItem('compass-class-data', JSON.stringify(data));
+    if (!API_URL) return;
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (API_KEY) headers['X-Master-Key'] = API_KEY;
+      await fetch(API_URL, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ placements: data })
+      });
+    } catch (err) {
+      console.warn('Remote save failed:', err);
+      setStatus('Hinweis: Server nicht erreichbar, lokal gespeichert.');
+    }
+  }
+
+  function renderButtons() {
+    partyButtonsEl.innerHTML = '';
+    parties.forEach(p => {
+      const b = document.createElement('button');
+      const classes = ['party-btn'];
+      if (p.id === activeParty) classes.push('active');
+      if (ownPlacements[p.id]) classes.push('placed');
+      b.className = classes.join(' ');
+      const check = ownPlacements[p.id] ? '<span class="check">\u2713</span>' : '';
+      b.innerHTML = '<span class="dot" style="background:' + p.color + ';"></span>' + p.name + check;
+      b.onclick = () => { activeParty = p.id; renderButtons(); renderMarkers(); updateStats(); };
+      partyButtonsEl.appendChild(b);
+    });
+  }
+
+  function makeMarker(pos, party, kind, label) {
+    const el = document.createElement('div');
+    el.className = 'marker ' + kind;
+    if (hasSubmitted && kind === 'own') el.classList.add('locked');
+    const left = ((pos.x + 1) / 2) * 100;
+    const top = ((-pos.y + 1) / 2) * 100;
+    el.style.left = left + '%';
+    el.style.top = top + '%';
+    const core = document.createElement('div');
+    core.className = 'core';
+    core.style.background = party.color;
+    el.appendChild(core);
+    const lab = document.createElement('div');
+    lab.className = 'label';
+    lab.textContent = label;
+    el.appendChild(lab);
+    if (kind === 'own' && !hasSubmitted) {
+      el.dataset.partyId = party.id;
+      el.addEventListener('pointerdown', onDragStart);
+    }
+    return el;
+  }
+
+  function renderMarkers() {
+    stage.querySelectorAll('.marker').forEach(m => m.remove());
+    parties.forEach(p => {
+      if (showOwn && ownPlacements[p.id]) {
+        const m = makeMarker(ownPlacements[p.id], p, 'own', p.name);
+        m.style.opacity = (p.id === activeParty) ? '1' : '0.45';
+        stage.appendChild(m);
+      }
+      const arr = classData[p.id] || [];
+      if (showClass && arr.length > 0) {
+        const mean = {
+          x: arr.reduce((s, v) => s + v.x, 0) / arr.length,
+          y: arr.reduce((s, v) => s + v.y, 0) / arr.length,
+        };
+        const m = makeMarker(mean, p, 'mean', p.name + ' (\u2300 n=' + arr.length + ')');
+        stage.appendChild(m);
+      }
+    });
+  }
+
+  function updateStats() {
+    document.getElementById('stat-party').textContent = getParty(activeParty).name;
+    const placed = Object.keys(ownPlacements).length;
+    document.getElementById('stat-placed').textContent = placed + ' / ' + parties.length;
+    let total = 0;
+    Object.values(classData).forEach(arr => total += arr.length);
+    document.getElementById('stat-total').textContent = total;
+    updateSaveButton(placed);
+  }
+
+  function updateSaveButton(placed) {
+    if (hasSubmitted) {
+      saveBtn.textContent = 'Gespeichert \u2713';
+      saveBtn.classList.add('saved');
+      saveBtn.disabled = true;
+      saveHint.textContent = 'Deine Einordnungen wurden an das Seminar übermittelt.';
+      return;
+    }
+    if (placed < parties.length) {
+      saveBtn.textContent = 'Speichern';
+      saveBtn.disabled = true;
+      const remaining = parties.length - placed;
+      saveHint.textContent = 'Noch ' + remaining + ' Partei' + (remaining === 1 ? '' : 'en') + ' zu platzieren';
+    } else {
+      saveBtn.textContent = 'Speichern';
+      saveBtn.disabled = false;
+      saveHint.textContent = 'Alle Parteien platziert. Du kannst sie noch verschieben oder jetzt speichern.';
+    }
+  }
+
+  function coordsFromEvent(clientX, clientY) {
+    const rect = stage.getBoundingClientRect();
+    const px = (clientX - rect.left) / rect.width;
+    const py = (clientY - rect.top) / rect.height;
+    const x = Math.max(-1, Math.min(1, px * 2 - 1));
+    const y = Math.max(-1, Math.min(1, -(py * 2 - 1)));
+    return { x: x, y: y };
+  }
+
+  function onStageClick(e) {
+    if (hasSubmitted) return;
+    if (dragState) return;
+    if (e.target.closest('.marker')) return;
+    const pos = coordsFromEvent(e.clientX, e.clientY);
+    ownPlacements[activeParty] = pos;
+    persistDraft();
+    renderButtons();
+    renderMarkers();
+    updateStats();
+  }
+
+  function onDragStart(e) {
+    if (hasSubmitted) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = e.currentTarget;
+    const pid = el.dataset.partyId;
+    activeParty = pid;
+    dragState = { partyId: pid, pointerId: e.pointerId };
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    el.addEventListener('pointermove', onDragMove);
+    el.addEventListener('pointerup', onDragEnd);
+    el.addEventListener('pointercancel', onDragEnd);
+    renderButtons();
+  }
+  function onDragMove(e) {
+    if (!dragState) return;
+    const pos = coordsFromEvent(e.clientX, e.clientY);
+    ownPlacements[dragState.partyId] = pos;
+    renderMarkers();
+    updateStats();
+  }
+  function onDragEnd(e) {
+    if (!dragState) return;
+    const el = e.currentTarget;
+    try { el.releasePointerCapture(dragState.pointerId); } catch (err) {}
+    el.removeEventListener('pointermove', onDragMove);
+    el.removeEventListener('pointerup', onDragEnd);
+    el.removeEventListener('pointercancel', onDragEnd);
+    dragState = null;
+    persistDraft();
+  }
+
+  function persistDraft() {
+    localStorage.setItem('compass-own', JSON.stringify(ownPlacements));
+  }
+
+  stage.addEventListener('click', onStageClick);
+
+  saveBtn.onclick = async () => {
+    if (hasSubmitted) return;
+    if (Object.keys(ownPlacements).length < parties.length) return;
+    saveBtn.disabled = true;
+    setStatus('Übermittle Einordnungen an das Seminar ...');
+    try {
+      classData = await loadRemote();
+      const now = Date.now();
+      parties.forEach(p => {
+        const pos = ownPlacements[p.id];
+        if (!pos) return;
+        if (!classData[p.id]) classData[p.id] = [];
+        classData[p.id].push({
+          x: Math.round(pos.x * 1000) / 1000,
+          y: Math.round(pos.y * 1000) / 1000,
+          t: now
+        });
+      });
+      await saveRemote(classData);
+      hasSubmitted = true;
+      localStorage.setItem('compass-submitted', '1');
+      renderMarkers();
+      updateStats();
+      setStatus('\u2713 Deine Einordnungen wurden gespeichert.');
+    } catch (err) {
+      setStatus('Fehler beim Speichern: ' + (err.message || err));
+      saveBtn.disabled = false;
+    }
+  };
+
+  document.getElementById('toggle-own').onclick = () => {
+    showOwn = !showOwn;
+    document.getElementById('toggle-own').textContent = showOwn ? 'Eigene ausblenden' : 'Eigene einblenden';
+    renderMarkers();
+  };
+
+  document.getElementById('refresh-btn').onclick = async () => {
+    setStatus('Lade Seminardaten ...');
+    classData = await loadRemote();
+    renderMarkers();
+    updateStats();
+    setStatus('Seminardaten aktualisiert.');
+  };
+
+  document.getElementById('reset-own-btn').onclick = () => {
+    if (hasSubmitted) {
+      setStatus('Bereits gespeicherte Einordnungen können nicht zurückgesetzt werden.');
+      return;
+    }
+    ownPlacements = {};
+    localStorage.removeItem('compass-own');
+    renderButtons();
+    renderMarkers();
+    updateStats();
+    setStatus('Eigene Einordnungen zurückgesetzt.');
+  };
+
+  async function init() {
+    if (isAdmin) {
+      document.getElementById('admin-toolbar').style.display = 'flex';
+      document.getElementById('admin-badge').style.display = 'block';
+
+      document.getElementById('toggle-class-btn').onclick = () => {
+        showClass = !showClass;
+        document.getElementById('toggle-class-btn').textContent =
+          showClass ? 'Seminardaten ausblenden' : 'Seminardaten einblenden';
+        renderMarkers();
+      };
+
+      document.getElementById('reset-all-btn').onclick = async () => {
+        if (!confirm('Wirklich alle Seminardaten löschen? Dies kann nicht rückgängig gemacht werden.')) return;
+        classData = {};
+        await saveRemote(classData);
+        hasSubmitted = false;
+        localStorage.removeItem('compass-submitted');
+        renderMarkers();
+        updateStats();
+        setStatus('Alle Seminardaten wurden gelöscht.');
+      };
+
+      document.getElementById('export-btn').onclick = () => {
+        let csv = 'partei;x_soziooekonomisch;y_soziokulturell;zeitstempel\n';
+        Object.keys(classData).forEach(pid => {
+          const p = getParty(pid);
+          if (!p) return;
+          classData[pid].forEach(v => {
+            csv += p.name + ';' + v.x + ';' + v.y + ';' + new Date(v.t).toISOString() + '\n';
+          });
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'politischer_kompass_seminardaten.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+    }
+
+    const raw = localStorage.getItem('compass-own');
+    if (raw) { try { ownPlacements = JSON.parse(raw); } catch (e) {} }
+    if (localStorage.getItem('compass-submitted') === '1') {
+      hasSubmitted = true;
+    }
+    classData = await loadRemote();
+    renderButtons();
+    renderMarkers();
+    updateStats();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
