@@ -1,1 +1,0 @@
-# party_placer_brd
